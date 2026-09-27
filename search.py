@@ -87,7 +87,39 @@ def depthFirstSearch(problem: SearchProblem):
     print("Start's successors:", problem.getSuccessors(problem.getStartState()))
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # 1. Tạo Stack (ngăn xếp) để lưu các điểm cần đi.
+    # Cơ chế LIFO (vào sau ra trước) của Stack chính là thứ tạo nên "tính đi sâu" của DFS.
+    s = util.Stack()
+    # 2. Đẩy điểm xuất phát vào Stack.
+    # Phần tử lưu dưới dạng Tuple: (Trạng thái hiện tại, Danh sách hành động đã đi tới đây).
+    # Ban đầu ở vạch xuất phát thì danh sách bước đi là rỗng [].
+    s.push((problem.getStartState(), []))
+    # 3. Dùng tập hợp (Set) để ghi nhớ những điểm ĐÃ XỬ LÝ xong.
+    # Set cho tốc độ tìm kiếm cực nhanh O(1).
+    seen = set()
+    # 4. Vòng lặp chạy liên tục cho đến khi Stack không còn gì để rút (hết đường đi)
+    while not s.isEmpty():
+        # Lấy phần tử nằm trên ĐỈNH Stack ra (mới nhất)
+        curr, path = s.pop()
+        # Nếu điểm này đã từng bị rút ra và xử lý trước đó rồi -> Bỏ qua
+        if curr in seen:
+            continue
+        # Đánh dấu chính thức: "Tôi đang đứng xử lý điểm curr này"
+        seen.add(curr)
+        # Kiểm tra xem điểm này có phải Đích không
+        # Nếu đúng -> Trả về ngay danh sách các bước đi (path) để tới được đây
+        if problem.isGoalState(curr):
+            return path
+        # Tìm tất cả các điểm hàng xóm có thể đi tới từ curr
+        # getSuccessors trả về (Trạng thái kế tiếp, Hành động, Chi phí)
+        for nxt, act, _ in problem.getSuccessors(curr):
+            # Nếu điểm hàng xóm chưa từng được xử lý
+            if nxt not in seen:
+                # Đẩy điểm đó vào Stack.
+                # Đường đi mới = đường đi cũ + bước đi mới (path + [act])
+                s.push((nxt, path + [act]))
+    # Trường hợp đã đi hết tất cả các ngách mà không thấy đích
+    return []
 
 def breadthFirstSearch(problem: SearchProblem):
     """Search the shallowest nodes in the search tree first."""
