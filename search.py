@@ -124,17 +124,22 @@ def depthFirstSearch(problem: SearchProblem):
 def breadthFirstSearch(problem: SearchProblem):
     """Search the shallowest nodes in the search tree first."""
     "*** YOUR CODE HERE ***"
+    # Tạo hàng đợi cho BFS
     frontier = util.Queue()
     start_state = problem.getStartState()
     frontier.push((start_state, []))
+
+    # Theo dõi các trạng thái đã xét để tránh lặp vô hạn
     visited = {start_state}
 
     while not frontier.isEmpty():
         state, actions = frontier.pop()
 
+        # Nếu đã đến đích thì trả về đường đi
         if problem.isGoalState(state):
             return actions
 
+        # Xét các trạng thái kế tiếp
         for successor, action, _ in problem.getSuccessors(state):
             if successor not in visited:
                 visited.add(successor)
