@@ -372,45 +372,30 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     shortest path from the state to a goal of the problem; i.e.  it should be
     admissible (as well as consistent).
     """
-    corners = problem.corners # These are the corner coordinates
-    walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
-
     position, visited = state
-
-    # The remaining corners are exactly the ones that still need to be visited.
-    remaining = []
-    for index, corner in enumerate(corners):
-        if not (visited & (1 << index)):
-            remaining.append(corner)
-
-    if not remaining:
+    remaining_mask = ((1 << len(problem.corners)) - 1) & ~visited
+    if remaining_mask == 0:
         return 0
 
-    # Lower bound: minimum spanning tree cost over the current position and the
-    # remaining corners. Any valid path that visits all required corners must at
-    # least connect these points, so this is admissible. Using Manhattan distance
-    # keeps the bound consistent with the grid layout.
-    points = [position] + remaining
-    tree = {0}
-    unvisited = set(range(1, len(points)))
-    total = 0
+    def distance(first, second):
+        return abs(first[0] - second[0]) + abs(first[1] - second[1])
 
-    while unvisited:
-        best_distance = float('inf')
-        best_edge = None
+    def shortest_order(current_position, corners_to_visit):
+        if corners_to_visit == 0:
+            return 0
 
-        for i in tree:
-            for j in unvisited:
-                dist = abs(points[i][0] - points[j][0]) + abs(points[i][1] - points[j][1])
-                if dist < best_distance:
-                    best_distance = dist
-                    best_edge = j
+        best_cost = float('inf')
+        for index, corner in enumerate(problem.corners):
+            bit = 1 << index
+            if corners_to_visit & bit:
+                cost = distance(current_position, corner)
+                cost += shortest_order(corner, corners_to_visit & ~bit)
+                best_cost = min(best_cost, cost)
 
-        total += best_distance
-        tree.add(best_edge)
-        unvisited.remove(best_edge)
+        return best_cost
 
-    return total
+    # Ignoring walls can only make the route shorter, so this remains admissible.
+    return shortest_order(position, remaining_mask)
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
