@@ -184,12 +184,10 @@ def nullHeuristic(state, problem=None):
 def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
-
-    fringe = util.PriorityQueue() # Bien tim kiem
-    visited = set() # closed set luu nhung dinh da duoc xet qua
-
+    fringe = util.PriorityQueue()
     start_state = problem.getStartState()
     fringe.push((start_state, []), heuristic(start_state, problem))
+    visited = {}
 
     while not fringe.isEmpty():
         state, actions = fringe.pop()
@@ -197,20 +195,17 @@ def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
         if problem.isGoalState(state):
             return actions
 
-        if state not in visited:
-            visited.add(state) # Dannh dau da tham
-            # Xet dinh ke chua tham
-            for successor, action, stepCost in problem.getSuccessors(state):
-                if successor not in visited:
+        g_cost = problem.getCostOfActions(actions)
+        if state in visited and visited[state] <= g_cost:
+            continue
+        visited[state] = g_cost
 
-                    g_cost = problem.getCostOfActions(actions + [action])
-                    h_cost = heuristic(successor, problem)
-                    f_cost = g_cost + h_cost
+        for successor, action, step_cost in problem.getSuccessors(state):
+            new_actions = actions + [action]
+            priority = problem.getCostOfActions(new_actions) + heuristic(successor, problem)
+            fringe.push((successor, new_actions), priority)
 
-                    fringe.push((successor, actions + [action]), f_cost)
-
-    return []  # Truong hop ko tim thay duong di
-    util.raiseNotDefined()
+    return []
 
 
 # Abbreviations
