@@ -519,7 +519,6 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
 
     # 4. Trả về khoảng cách mê cung lớn nhất từ Pacman tới hạt thức ăn xa nhất
     return max(getDistance(position, food) for food in foodList)
-
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
     def registerInitialState(self, state):
