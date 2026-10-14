@@ -42,7 +42,6 @@ import util
 import time
 import search
 import pacman
-import itertools
 
 class GoWestAgent(Agent):
     "An agent that goes West until it can't."
@@ -284,7 +283,6 @@ class CornersProblem(search.SearchProblem):
         """
         self.walls = startingGameState.getWalls()
         self.startingPosition = startingGameState.getPacmanPosition()
-        self.startingGameState = startingGameState
         top, right = self.walls.height-2, self.walls.width-2
         self.corners = ((1,1), (1,top), (right, 1), (right, top))
         for corner in self.corners:
@@ -297,18 +295,21 @@ class CornersProblem(search.SearchProblem):
         Returns the start state (in your state space, not the full Pacman state
         space)
         """
-        # Đang ở vị trí xuất phát chưa di chuyển đến góc nào
+        # Trạng thái gồm: vị trí hiện tại và các góc đã đi qua.
+        # Dùng bitmask để lưu trạng thái các góc đã thăm: bit 0..3 tương ứng với 4 góc.
+        start_mask = 0
         if self.startingPosition in self.corners:
-            return (self.startingPosition, (self.startingPosition,))
-        return (self.startingPosition, ())
+            start_mask = self.corners.index(self.startingPosition)
+            start_mask = 1 << start_mask
+        return (self.startingPosition, start_mask)
 
     def isGoalState(self, state: Any):
         """
         Returns whether this search state is a goal state of the problem.
         """
-        #Kiểm tra xem đã đi qua tất cả các góc chưa. Nếu số lượng các góc đã đi qua bằng tổng số góc thì là trạng thái mục tiêu đạt được
-        position, visited = state
-        return len(visited) == len(self.corners)
+        # Mục tiêu là đã đi qua cả 4 góc.
+        goal_mask = (1 << len(self.corners)) - 1
+        return state[1] == goal_mask
 
     def getSuccessors(self, state: Any):
         """
@@ -320,19 +321,26 @@ class CornersProblem(search.SearchProblem):
             state, 'action' is the action required to get there, and 'stepCost'
             is the incremental cost of expanding to that successor
         """
-       #Tìm kiếm all trạng thái kế tiếp hợp lệ từ trạng thái now từ đó trả về danh sách các bộ ba ((vị_trí_mới, góc_đã_thăm_mới), hành_động, chi_phí)
+
         successors = []
-        position, visited = state
+        x, y = state[0]
+        current_mask = state[1]
+
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
-            x, y = position
+            # Tính tọa độ mới nếu đi theo hướng đó
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
-            if not self.walls[nextx][nexty]:
-                next_position = (nextx, nexty)
-                next_visited = visited
-                if next_position in self.corners and next_position not in visited:
-                    next_visited = visited + (next_position,)
-                successors.append(((next_position, next_visited), action, 1))
+
+            # Nếu không va vào tường thì hợp lệ
+            if not self.walls[nextx][nexty]: 
+                next_state = (nextx, nexty) #vị trí tiếp theo nếu đi theo hướng đó
+                next_mask = current_mask
+
+                # Nếu vị trí mới là một góc thì đánh dấu góc đó đã thăm
+                if next_state in self.corners:
+                    corner_index = self.corners.index(next_state) #lấy ra vị trí index góc (0..3 )
+                    next_mask |= (1 << corner_index) # đánh dấu thêm các góc đã thăm = phép toán OR
+                successors.append(((next_state, next_mask), action, 1))
 
         self._expanded += 1 # DO NOT CHANGE, cập nhật số lượng nút đã mở rộng
         return successors
@@ -347,7 +355,6 @@ class CornersProblem(search.SearchProblem):
         for action in actions:
             dx, dy = Actions.directionToVector(action)
             x, y = int(x + dx), int(y + dy)
-            #Nếu đâm vào tường thì chuỗi hành động không hợp lệ,trả về chi phí lớn
             if self.walls[x][y]: return 999999
         return len(actions)
 
@@ -366,41 +373,33 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     admissible (as well as consistent).
     """
     position, visited = state
-    unvisited = [corner for corner in problem.corners if corner not in visited]
-
-    if not unvisited:
+    # Tính toán các góc còn lại chưa thăm bằng cách sử dụng bitmask 
+    remaining_mask = ((1 << len(problem.corners)) - 1) & ~visited #(1111 x phủ của visited= các góc chưa thăm )
+    if remaining_mask == 0:
         return 0
 
-    if not hasattr(problem, 'heuristicInfo'):
-        problem.heuristicInfo = {}
+    def distance(first, second): #manhattan
+        return abs(first[0] - second[0]) + abs(first[1] - second[1])
+    
+#  Hàm đệ quy tính tổng khoảng cách Manhattan tối ưu 
+# Thử từng thứ tự (hoán vị) đi qua các góc còn lại để tìm chi phí nhỏ nhất
+    def shortest_order(current_position, corners_to_visit): 
+        if corners_to_visit == 0:
+            return 0
 
-    if 'corner_distances' not in problem.heuristicInfo:
-        corner_distances = {}
-        for source in problem.corners:
-            distances = {source: 0}
-            frontier = [source]
-            index = 0
-            while index < len(frontier):
-                x, y = frontier[index]
-                index += 1
-                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-                    neighbor = (x + dx, y + dy)
-                    if not problem.walls[neighbor[0]][neighbor[1]] and neighbor not in distances:
-                        distances[neighbor] = distances[(x, y)] + 1
-                        frontier.append(neighbor)
-            for point, distance in distances.items():
-                corner_distances[(source, point)] = distance
-        problem.heuristicInfo['corner_distances'] = corner_distances
+        best_cost = float('inf')
+        for index, corner in enumerate(problem.corners): #Duyệt qua từng góc
+            bit = 1 << index
+            if corners_to_visit & bit: # nếu chưa thăm thì tính toán chi phí đi đến góc đó và tiếp tục đệ quy
+                cost = distance(current_position, corner)
+                cost += shortest_order(corner, corners_to_visit & ~bit)
+                best_cost = min(best_cost, cost)
 
-    corner_distances = problem.heuristicInfo['corner_distances']
-    minimum_distance = float('inf')
-    for permutation in itertools.permutations(unvisited):
-        distance = corner_distances[(permutation[0], position)]
-        for index in range(len(permutation) - 1):
-            distance += corner_distances[(permutation[index], permutation[index + 1])]
-        minimum_distance = min(minimum_distance, distance)
+        return best_cost
 
-    return minimum_distance
+    # Ignoring walls can only make the route shorter, so this remains admissible.
+    return shortest_order(position, remaining_mask)
+
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
     def __init__(self):
@@ -493,6 +492,7 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     """
     # 1. Tách trạng thái hiện tại thành vị trí của Pacman và lưới thức ăn
     position, foodGrid = state
+<<<<<<< HEAD
     foodList = foodGrid.asList()  # Chuyển lưới thức ăn thành danh sách các tọa độ (x, y)
 
     # Trường hợp cơ sở: Nếu đã hết thức ăn, chi phí còn lại bằng 0
@@ -516,6 +516,10 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
                 problem.startingGameState
             )
         return distanceCache[key]
+=======
+    "*** YOUR CODE HERE ***"
+    return 0
+>>>>>>> 6a394e68483be0c28244cc4decccbbbf9c8f1117
 
     # 4. Trả về khoảng cách mê cung lớn nhất từ Pacman tới hạt thức ăn xa nhất
     return max(getDistance(position, food) for food in foodList)
