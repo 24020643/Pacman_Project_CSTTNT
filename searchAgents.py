@@ -464,7 +464,7 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchType = FoodSearchProblem
 
 def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
-    """
+        """
     Your heuristic for the FoodSearchProblem goes here.
 
     This heuristic must be consistent to ensure correctness.  First, try to come
@@ -491,58 +491,34 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     Subsequent calls to this heuristic can access
     problem.heuristicInfo['wallCount']
     """
+    # 1. Tách trạng thái hiện tại thành vị trí của Pacman và lưới thức ăn
     position, foodGrid = state
-    food_positions = foodGrid.asList()
-    if not food_positions:
+    foodList = foodGrid.asList()  # Chuyển lưới thức ăn thành danh sách các tọa độ (x, y)
+
+    # Trường hợp cơ sở: Nếu đã hết thức ăn, chi phí còn lại bằng 0
+    if not foodList:
         return 0
 
-    info = problem.heuristicInfo
-    if 'maze_distances' not in info:
-        info['maze_distances'] = {}
-    if 'food_mst' not in info:
-        info['food_mst'] = {}
+    # 2. Lấy bộ nhớ tạm (cache) từ problem.heuristicInfo để tránh tính lại mazeDistance nhiều lần
+    # Nếu chưa có key 'mazeDistances', setdefault sẽ tự tạo một dictionary rỗng {}
+    distanceCache = problem.heuristicInfo.setdefault('mazeDistances', {})
 
-    distance_maps = info['maze_distances']
+    # 3. Hàm helper tính khoảng cách mê cung giữa 2 điểm (có lưu cache)
+    def getDistance(point1, point2):
+        # Sắp xếp cặp điểm để (A, B) hay (B, A) đều dùng chung 1 key duy nhất trong cache
+        key = tuple(sorted((point1, point2)))
 
-    def distances_from(source):
-        if source not in distance_maps:
-            distances = {source: 0}
-            frontier = [source]
-            index = 0
-            while index < len(frontier):
-                x, y = frontier[index]
-                index += 1
-                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-                    neighbor = (x + dx, y + dy)
-                    if not problem.walls[neighbor[0]][neighbor[1]] and neighbor not in distances:
-                        distances[neighbor] = distances[(x, y)] + 1
-                        frontier.append(neighbor)
-            distance_maps[source] = distances
-        return distance_maps[source]
+        # Nếu chưa tính khoảng cách giữa 2 điểm này bao giờ, tiến hành tính và lưu lại
+        if key not in distanceCache:
+            distanceCache[key] = mazeDistance(
+                point1,
+                point2,
+                problem.startingGameState
+            )
+        return distanceCache[key]
 
-    nearest_food = min(distances_from(position)[food] for food in food_positions)
-
-    food_key = tuple(sorted(food_positions))
-    if food_key not in info['food_mst']:
-        connected = [food_positions[0]]
-        remaining = set(food_positions[1:])
-        best_edges = {
-            food: distances_from(connected[0])[food]
-            for food in remaining
-        }
-        mst_cost = 0
-
-        while best_edges:
-            next_food = min(best_edges, key=best_edges.get)
-            mst_cost += best_edges.pop(next_food)
-            connected.append(next_food)
-            next_distances = distances_from(next_food)
-            for food in best_edges:
-                best_edges[food] = min(best_edges[food], next_distances[food])
-
-        info['food_mst'][food_key] = mst_cost
-
-    return nearest_food + info['food_mst'][food_key]
+    # 4. Trả về khoảng cách mê cung lớn nhất từ Pacman tới hạt thức ăn xa nhất
+    return max(getDistance(position, food) for food in foodList)
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
