@@ -115,7 +115,8 @@ def breadthFirstSearch(problem: SearchProblem):
     start_state = problem.getStartState()
     frontier.push((start_state, []))
 
-    visited = {start_state}
+    visited = set()
+    visited.add(start_state)
 
     while not frontier.isEmpty():
         state, actions = frontier.pop()
