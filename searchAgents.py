@@ -322,22 +322,23 @@ class CornersProblem(search.SearchProblem):
        # tim kiem all trang thai hop le tu current position dang ((next_position, next_visited), action, 1)
         successors = []
         position, visited = state
+        x, y = position
 
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
-            # Tính tọa độ mới nếu đi theo hướng đó
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
 
             if not self.walls[nextx][nexty]:
                 next_position = (nextx, nexty)
                 next_visited = visited
+                
                 # Neu next_position la 1 trong 4 goc va chua duoc tham thi them vao next_visited
                 if next_position in self.corners and next_position not in visited:
                     next_visited = visited + (next_position,)
 
                 successors.append(((next_position, next_visited), action, 1))
 
-        self._expanded += 1 # DO NOT CHANGE, cập nhật số lượng nút đã mở rộng
+        self._expanded += 1 # DO NOT CHANGE
         return successors
 
     def getCostOfActions(self, actions):
@@ -367,33 +368,50 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     shortest path from the state to a goal of the problem; i.e.  it should be
     admissible (as well as consistent).
     """
-    position, visited = state
-    # Tính toán các góc còn lại chưa thăm bằng cách sử dụng bitmask 
-    remaining_mask = ((1 << len(problem.corners)) - 1) & ~visited #(1111 x phủ của visited= các góc chưa thăm )
-    if remaining_mask == 0:
+    position, visitedCorners = state
+    corners = problem.corners
+
+    remainingCorners = []
+    for corner in corners:
+        if corner not in visitedCorners:
+            remainingCorners.append(corner)
+  
+
+    # Đã đi qua cả 4 góc
+    if not remainingCorners:
         return 0
 
-    def distance(first, second): #manhattan
-        return abs(first[0] - second[0]) + abs(first[1] - second[1])
+
+    def permutation (remainingCorners):
+
+        if len(remainingCorners) == 0:
+            return [[]]
+        
+        perms = []
+        for i in range(len(remainingCorners)):
+            corner = remainingCorners[i]
+            rest = remainingCorners[:i] + remainingCorners[i+1:]
+
+            # Hoan vi cac goc con lai tru remainingCorners[i]
+            for perm in permutation(rest):
+                perms.append([corner] + perm)
+
+        return perms
     
-#  Hàm đệ quy tính tổng khoảng cách Manhattan tối ưu 
-# Thử từng thứ tự (hoán vị) đi qua các góc còn lại để tìm chi phí nhỏ nhất
-    def shortest_order(current_position, corners_to_visit): 
-        if corners_to_visit == 0:
-            return 0
+    bestDistance = float('inf')
 
-        best_cost = float('inf')
-        for index, corner in enumerate(problem.corners): #Duyệt qua từng góc
-            bit = 1 << index
-            if corners_to_visit & bit: # nếu chưa thăm thì tính toán chi phí đi đến góc đó và tiếp tục đệ quy
-                cost = distance(current_position, corner)
-                cost += shortest_order(corner, corners_to_visit & ~bit)
-                best_cost = min(best_cost, cost)
+    # Thử mọi thứ tự đi qua các góc còn lại
+    for order in permutation(remainingCorners):
+        distance = 0
+        currentPosition = position
 
-        return best_cost
+        for corner in order:
+            distance += util.manhattanDistance(currentPosition, corner)
+            currentPosition = corner
 
-    # Ignoring walls can only make the route shorter, so this remains admissible.
-    return shortest_order(position, remaining_mask)
+        bestDistance = min(bestDistance, distance)
+
+    return bestDistance
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -458,7 +476,7 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchType = FoodSearchProblem
 
 def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
-        """
+    """
     Your heuristic for the FoodSearchProblem goes here.
 
     This heuristic must be consistent to ensure correctness.  First, try to come
@@ -485,7 +503,7 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     Subsequent calls to this heuristic can access
     problem.heuristicInfo['wallCount']
     """
-    # 1. Tách trạng thái hiện tại thành vị trí của Pacman và lưới thức ăn
+        
     position, foodGrid = state
     foodList = foodGrid.asList()
 
