@@ -42,7 +42,6 @@ import util
 import time
 import search
 import pacman
-import itertools
 
 class GoWestAgent(Agent):
     "An agent that goes West until it can't."
@@ -284,7 +283,6 @@ class CornersProblem(search.SearchProblem):
         """
         self.walls = startingGameState.getWalls()
         self.startingPosition = startingGameState.getPacmanPosition()
-        self.startingGameState = startingGameState
         top, right = self.walls.height-2, self.walls.width-2
         self.corners = ((1,1), (1,top), (right, 1), (right, top))
         for corner in self.corners:
@@ -326,7 +324,7 @@ class CornersProblem(search.SearchProblem):
         position, visited = state
 
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
-            x, y = position
+            # Tính tọa độ mới nếu đi theo hướng đó
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
 
@@ -352,7 +350,6 @@ class CornersProblem(search.SearchProblem):
         for action in actions:
             dx, dy = Actions.directionToVector(action)
             x, y = int(x + dx), int(y + dy)
-            #Nếu đâm vào tường thì chuỗi hành động không hợp lệ,trả về chi phí lớn
             if self.walls[x][y]: return 999999
         return len(actions)
 
@@ -371,41 +368,33 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     admissible (as well as consistent).
     """
     position, visited = state
-    unvisited = [corner for corner in problem.corners if corner not in visited]
-
-    if not unvisited:
+    # Tính toán các góc còn lại chưa thăm bằng cách sử dụng bitmask 
+    remaining_mask = ((1 << len(problem.corners)) - 1) & ~visited #(1111 x phủ của visited= các góc chưa thăm )
+    if remaining_mask == 0:
         return 0
 
-    if not hasattr(problem, 'heuristicInfo'):
-        problem.heuristicInfo = {}
+    def distance(first, second): #manhattan
+        return abs(first[0] - second[0]) + abs(first[1] - second[1])
+    
+#  Hàm đệ quy tính tổng khoảng cách Manhattan tối ưu 
+# Thử từng thứ tự (hoán vị) đi qua các góc còn lại để tìm chi phí nhỏ nhất
+    def shortest_order(current_position, corners_to_visit): 
+        if corners_to_visit == 0:
+            return 0
 
-    if 'corner_distances' not in problem.heuristicInfo:
-        corner_distances = {}
-        for source in problem.corners:
-            distances = {source: 0}
-            frontier = [source]
-            index = 0
-            while index < len(frontier):
-                x, y = frontier[index]
-                index += 1
-                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-                    neighbor = (x + dx, y + dy)
-                    if not problem.walls[neighbor[0]][neighbor[1]] and neighbor not in distances:
-                        distances[neighbor] = distances[(x, y)] + 1
-                        frontier.append(neighbor)
-            for point, distance in distances.items():
-                corner_distances[(source, point)] = distance
-        problem.heuristicInfo['corner_distances'] = corner_distances
+        best_cost = float('inf')
+        for index, corner in enumerate(problem.corners): #Duyệt qua từng góc
+            bit = 1 << index
+            if corners_to_visit & bit: # nếu chưa thăm thì tính toán chi phí đi đến góc đó và tiếp tục đệ quy
+                cost = distance(current_position, corner)
+                cost += shortest_order(corner, corners_to_visit & ~bit)
+                best_cost = min(best_cost, cost)
 
-    corner_distances = problem.heuristicInfo['corner_distances']
-    minimum_distance = float('inf')
-    for permutation in itertools.permutations(unvisited):
-        distance = corner_distances[(permutation[0], position)]
-        for index in range(len(permutation) - 1):
-            distance += corner_distances[(permutation[index], permutation[index + 1])]
-        minimum_distance = min(minimum_distance, distance)
+        return best_cost
 
-    return minimum_distance
+    # Ignoring walls can only make the route shorter, so this remains admissible.
+    return shortest_order(position, remaining_mask)
+
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
     def __init__(self):
@@ -469,7 +458,7 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchType = FoodSearchProblem
 
 def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
-    """
+        """
     Your heuristic for the FoodSearchProblem goes here.
 
     This heuristic must be consistent to ensure correctness.  First, try to come
@@ -496,6 +485,7 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     Subsequent calls to this heuristic can access
     problem.heuristicInfo['wallCount']
     """
+    # 1. Tách trạng thái hiện tại thành vị trí của Pacman và lưới thức ăn
     position, foodGrid = state
     foodList = foodGrid.asList()
 
@@ -553,8 +543,6 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
 
         "*** YOUR CODE HERE ***"
-        # Vi chi phi deu la 1 nen BFS se tim duoc den thuc an gan nhat
-        return search.bfs(problem)
         util.raiseNotDefined()
 
 class AnyFoodSearchProblem(PositionSearchProblem):
@@ -591,8 +579,6 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         x,y = state
 
         "*** YOUR CODE HERE ***"
-        # Vi tri thuc an la goal state, nen kiem tra xem vi tri hien tai trong luoi food co phai la thuc an hay khong
-        return self.food[x][y]
         util.raiseNotDefined()
 
 def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pacman.GameState) -> int:
