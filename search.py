@@ -87,49 +87,34 @@ def depthFirstSearch(problem: SearchProblem):
     print("Start's successors:", problem.getSuccessors(problem.getStartState()))
     """
     "*** YOUR CODE HERE ***"
-    # 1. Tạo Stack (ngăn xếp) để lưu các điểm cần đi.
-    # Cơ chế LIFO (vào sau ra trước) của Stack chính là thứ tạo nên "tính đi sâu" của DFS.
-    s = util.Stack()
-    # 2. Đẩy điểm xuất phát vào Stack.
-    # Phần tử lưu dưới dạng Tuple: (Trạng thái hiện tại, Danh sách hành động đã đi tới đây).
-    # Ban đầu ở vạch xuất phát thì danh sách bước đi là rỗng [].
-    s.push((problem.getStartState(), []))
-    # 3. Dùng tập hợp (Set) để ghi nhớ những điểm ĐÃ XỬ LÝ xong.
-    # Set cho tốc độ tìm kiếm cực nhanh O(1).
-    seen = set()
-    # 4. Vòng lặp chạy liên tục cho đến khi Stack không còn gì để rút (hết đường đi)
-    while not s.isEmpty():
-        # Lấy phần tử nằm trên ĐỈNH Stack ra (mới nhất)
-        curr, path = s.pop()
-        # Nếu điểm này đã từng bị rút ra và xử lý trước đó rồi -> Bỏ qua
-        if curr in seen:
-            continue
-        # Đánh dấu chính thức: "Tôi đang đứng xử lý điểm curr này"
-        seen.add(curr)
-        # Kiểm tra xem điểm này có phải Đích không
-        # Nếu đúng -> Trả về ngay danh sách các bước đi (path) để tới được đây
-        if problem.isGoalState(curr):
-            return path
-        # Tìm tất cả các điểm hàng xóm có thể đi tới từ curr
-        # getSuccessors trả về (Trạng thái kế tiếp, Hành động, Chi phí)
-        for nxt, act, _ in problem.getSuccessors(curr):
-            # Nếu điểm hàng xóm chưa từng được xử lý
-            if nxt not in seen:
-                # Đẩy điểm đó vào Stack.
-                # Đường đi mới = đường đi cũ + bước đi mới (path + [act])
-                s.push((nxt, path + [act]))
-    # Trường hợp đã đi hết tất cả các ngách mà không thấy đích
+    fringe = util.Stack()
+    visited = set()
+    
+    # tuple (state, actions)
+    fringe.push((problem.getStartState(), []))
+    
+    while not fringe.isEmpty():
+        state, actions = fringe.pop()
+        
+        if problem.isGoalState(state):
+            return actions
+            
+        if state not in visited:
+            visited.add(state)
+            # reverse successors dam bao dung thu tu khi duyet DFS
+            for successor, action, stepCost in reversed(problem.getSuccessors(state)):
+                if successor not in visited:
+                    fringe.push((successor, actions + [action]))
+                    
     return []
 
 def breadthFirstSearch(problem: SearchProblem):
     """Search the shallowest nodes in the search tree first."""
     "*** YOUR CODE HERE ***"
-    # Tạo hàng đợi cho BFS
     frontier = util.Queue()
     start_state = problem.getStartState()
     frontier.push((start_state, []))
 
-    # Theo dõi các trạng thái đã xét để tránh lặp vô hạn
     visited = {start_state}
 
     while not frontier.isEmpty():
@@ -140,7 +125,7 @@ def breadthFirstSearch(problem: SearchProblem):
             return actions
 
         # Xét các trạng thái kế tiếp
-        for successor, action, _ in problem.getSuccessors(state):
+        for successor, action, stepCost in problem.getSuccessors(state):
             if successor not in visited:
                 visited.add(successor)
                 frontier.push((successor, actions + [action]))
@@ -185,26 +170,27 @@ def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
     fringe = util.PriorityQueue()
-    start_state = problem.getStartState()
-    fringe.push((start_state, []), heuristic(start_state, problem))
-    visited = {}
+    visited = set()
+
+    fringe.push((problem.getStartState(), []), 0)
 
     while not fringe.isEmpty():
         state, actions = fringe.pop()
 
         if problem.isGoalState(state):
             return actions
+        
+        if state not in visited:
+            visited.add(state)
 
-        g_cost = problem.getCostOfActions(actions)
-        if state in visited and visited[state] <= g_cost:
-            continue
-        visited[state] = g_cost
-
-        for successor, action, step_cost in problem.getSuccessors(state):
-            new_actions = actions + [action]
-            priority = problem.getCostOfActions(new_actions) + heuristic(successor, problem)
-            fringe.push((successor, new_actions), priority)
-
+            for successor, action, stepCost in problem.getSuccessors(state):
+                if successor not in visited:
+                    new_actions = actions + [action]
+                    # tieu chi de danh gia xem dinh nao duoc xet tiep theo
+                    new_cost = problem.getCostOfActions(new_actions) + heuristic(successor, problem)
+                    fringe.push((successor, new_actions), new_cost)
+    
+    return []
     return []
 
 

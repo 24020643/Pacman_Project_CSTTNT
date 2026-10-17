@@ -297,16 +297,17 @@ class CornersProblem(search.SearchProblem):
         Returns the start state (in your state space, not the full Pacman state
         space)
         """
-        # Đang ở vị trí xuất phát chưa di chuyển đến góc nào
+        # startPosition neu trung voi vi tri goc thi danh dau da duoc tham
         if self.startingPosition in self.corners:
             return (self.startingPosition, (self.startingPosition,))
+        
         return (self.startingPosition, ())
 
     def isGoalState(self, state: Any):
         """
         Returns whether this search state is a goal state of the problem.
         """
-        #Kiểm tra xem đã đi qua tất cả các góc chưa. Nếu số lượng các góc đã đi qua bằng tổng số góc thì là trạng thái mục tiêu đạt được
+        # Neu da di het len = 4 thi da den dich
         position, visited = state
         return len(visited) == len(self.corners)
 
@@ -320,18 +321,22 @@ class CornersProblem(search.SearchProblem):
             state, 'action' is the action required to get there, and 'stepCost'
             is the incremental cost of expanding to that successor
         """
-       #Tìm kiếm all trạng thái kế tiếp hợp lệ từ trạng thái now từ đó trả về danh sách các bộ ba ((vị_trí_mới, góc_đã_thăm_mới), hành_động, chi_phí)
+       # tim kiem all trang thai hop le tu current position dang ((next_position, next_visited), action, 1)
         successors = []
         position, visited = state
+
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
             x, y = position
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
+
             if not self.walls[nextx][nexty]:
                 next_position = (nextx, nexty)
                 next_visited = visited
+                # Neu next_position la 1 trong 4 goc va chua duoc tham thi them vao next_visited
                 if next_position in self.corners and next_position not in visited:
                     next_visited = visited + (next_position,)
+
                 successors.append(((next_position, next_visited), action, 1))
 
         self._expanded += 1 # DO NOT CHANGE, cập nhật số lượng nút đã mở rộng
@@ -492,57 +497,32 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     problem.heuristicInfo['wallCount']
     """
     position, foodGrid = state
-    food_positions = foodGrid.asList()
-    if not food_positions:
+    foodList = foodGrid.asList()
+
+    if not foodList:
         return 0
 
-    info = problem.heuristicInfo
-    if 'maze_distances' not in info:
-        info['maze_distances'] = {}
-    if 'food_mst' not in info:
-        info['food_mst'] = {}
+    distanceStore = problem.heuristicInfo.setdefault('mazeDistances', {})
 
-    distance_maps = info['maze_distances']
+    # Ham tinh khoang cach maze chinh xac giua 2 diem va su dung cache de tranh tinh toan lai nhung khoang cach da tinh truoc do
+    def getDistance(point1, point2):
+        # Vi xet bai toan doi xung nen khoang cach giua 2 diem la giong nhau nen su dung tuple sorted de tao key cho dict
+        key = tuple(sorted((point1, point2)))
+        if key not in distanceStore:
+            distanceStore[key] = mazeDistance(
+                point1,
+                point2,
+                problem.startingGameState
+            )
+        return distanceStore[key]
 
-    def distances_from(source):
-        if source not in distance_maps:
-            distances = {source: 0}
-            frontier = [source]
-            index = 0
-            while index < len(frontier):
-                x, y = frontier[index]
-                index += 1
-                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-                    neighbor = (x + dx, y + dy)
-                    if not problem.walls[neighbor[0]][neighbor[1]] and neighbor not in distances:
-                        distances[neighbor] = distances[(x, y)] + 1
-                        frontier.append(neighbor)
-            distance_maps[source] = distances
-        return distance_maps[source]
+    # Tim khoang cach toi thuc an xa nhat trong foodList tu vi tri pacman hien tai
+    maxDistance = 0
+    for food in foodList:
+        distance = getDistance(position, food)
+        maxDistance = max(maxDistance, distance)
 
-    nearest_food = min(distances_from(position)[food] for food in food_positions)
-
-    food_key = tuple(sorted(food_positions))
-    if food_key not in info['food_mst']:
-        connected = [food_positions[0]]
-        remaining = set(food_positions[1:])
-        best_edges = {
-            food: distances_from(connected[0])[food]
-            for food in remaining
-        }
-        mst_cost = 0
-
-        while best_edges:
-            next_food = min(best_edges, key=best_edges.get)
-            mst_cost += best_edges.pop(next_food)
-            connected.append(next_food)
-            next_distances = distances_from(next_food)
-            for food in best_edges:
-                best_edges[food] = min(best_edges[food], next_distances[food])
-
-        info['food_mst'][food_key] = mst_cost
-
-    return nearest_food + info['food_mst'][food_key]
+    return maxDistance
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
