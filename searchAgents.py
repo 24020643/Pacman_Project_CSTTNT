@@ -305,7 +305,7 @@ class CornersProblem(search.SearchProblem):
         """
         Returns whether this search state is a goal state of the problem.
         """
-        # Neu da di het len = 4 thi da den dich
+        #Nếu đã thăm 4 góc, visted=1111, len=4 -> đã đến đích
         position, visited = state
         return len(visited) == len(self.corners)
 
@@ -325,6 +325,7 @@ class CornersProblem(search.SearchProblem):
         x, y = position
 
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+            # Tính tọa độ mới khi di chuyển theo hướng action
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
 
@@ -332,13 +333,13 @@ class CornersProblem(search.SearchProblem):
                 next_position = (nextx, nexty)
                 next_visited = visited
                 
-                # Neu next_position la 1 trong 4 goc va chua duoc tham thi them vao next_visited
+                # Nếu vị trí mới là 1 trong 4 góc và chưa từng thăm, thêm vào tuple các góc đã thăm
                 if next_position in self.corners and next_position not in visited:
                     next_visited = visited + (next_position,)
 
                 successors.append(((next_position, next_visited), action, 1))
 
-        self._expanded += 1 # DO NOT CHANGE
+        self._expanded += 1 # DO NOT CHANGE; Cập nhật số lượng node đã mở rộng
         return successors
 
     def getCostOfActions(self, actions):
@@ -368,10 +369,13 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     shortest path from the state to a goal of the problem; i.e.  it should be
     admissible (as well as consistent).
     """
+
+
+
     position, visitedCorners = state
     corners = problem.corners
 
-    remainingCorners = []
+    remainingCorners = [] #các góc chưa thăm
     for corner in corners:
         if corner not in visitedCorners:
             remainingCorners.append(corner)
@@ -381,7 +385,7 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     if not remainingCorners:
         return 0
 
-
+    # Hàm đệ quy sinh hoán vị trả về tất cả các cách sắp xếp thứ tự đi qua các góc đó
     def permutation (remainingCorners):
 
         if len(remainingCorners) == 0:
@@ -392,19 +396,21 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
             corner = remainingCorners[i]
             rest = remainingCorners[:i] + remainingCorners[i+1:]
 
-            # Hoan vi cac goc con lai tru remainingCorners[i]
+            # Tạo hoán vị các góc còn lại trừ remainingCorners[i]
             for perm in permutation(rest):
-                perms.append([corner] + perm)
+                perms.append([corner] + perm) 
 
         return perms
     
     bestDistance = float('inf')
 
-    # Thử mọi thứ tự đi qua các góc còn lại
+    # Duyệt qua từng thứ tự đi góc đã sinh ra ở trên
     for order in permutation(remainingCorners):
         distance = 0
         currentPosition = position
 
+   # Vị trí Pacman -> Góc 1 -> Góc 2 -> ... -> Góc cuối
+   # Dùng manhattan để đo chi phi đi
         for corner in order:
             distance += util.manhattanDistance(currentPosition, corner)
             currentPosition = corner
